@@ -512,6 +512,10 @@
     <button class="dev-btn" data-tier="oops">错 2 题 · 18 / 20</button>
     <button class="dev-btn" data-tier="timeout">超时 · 0 / 20</button>
     <div class="dev-voice">
+      <div class="dev-voice-title">奖励音效</div>
+      <button class="dev-btn" id="dev-sfx-play">试听全对奖励音效</button>
+    </div>
+    <div class="dev-voice">
       <div class="dev-voice-title">语音试听</div>
       <select id="dev-voice-select" class="dev-select"></select>
       <div class="dev-voice-row">
@@ -1006,6 +1010,7 @@
     fw.burstSeq = 0;
     fw.tick = 0;
     fw.running = true;
+    playRewardFanfare();
     [
       { at: 0, count: 2 },
       { at: 550, count: 3 },
@@ -1099,6 +1104,92 @@
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     fw.raf = requestAnimationFrame(drawFireworksFrame);
+  }
+
+  // ===== reward sound（Web Audio 合成，无需音频素材） =====
+  var audioCtx = null;
+  var rewardSfxPlays = 0;
+  var rewardGain = null;
+  function getAudioCtx() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!audioCtx) {
+      try { audioCtx = new AC(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === 'suspended') {
+      try { audioCtx.resume(); } catch (e) {}
+    }
+    return audioCtx;
+  }
+  function unlockAudio() { getAudioCtx(); }
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  function playRewardFanfare(force) {
+    if (!force && prefersReducedMotion()) return;
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    if (rewardGain) {
+      try { rewardGain.disconnect(); } catch (e) {}
+      rewardGain = null;
+    }
+    var now = ctx.currentTime + 0.04;
+    var master = ctx.createGain();
+    master.gain.value = 0.16;
+    master.connect(ctx.destination);
+    rewardGain = master;
+
+    function tone(freq, start, dur, vol, type) {
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.type = type || 'triangle';
+      osc.frequency.value = freq;
+      var t = now + start;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g);
+      g.connect(master);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    }
+
+    // 上行琶音
+    tone(523.25, 0.00, 0.55, 0.34);
+    tone(659.25, 0.09, 0.60, 0.32);
+    tone(783.99, 0.18, 0.65, 0.30);
+    tone(1046.50, 0.27, 0.80, 0.28);
+    // 高频闪光
+    tone(1567.98, 0.33, 0.35, 0.10, 'sine');
+    tone(2093.00, 0.40, 0.30, 0.07, 'sine');
+    // 终止和弦
+    [523.25, 659.25, 783.99, 1046.50].forEach(function (f, i) {
+      tone(f, 0.46, 1.25 + i * 0.05, 0.11, 'sine');
+    });
+    // 噪声微光
+    var len = Math.floor(ctx.sampleRate * 0.45);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 2600;
+    var ng = ctx.createGain();
+    ng.gain.value = 0.035;
+    src.connect(hp);
+    hp.connect(ng);
+    ng.connect(master);
+    src.start(now + 0.28);
+
+    rewardSfxPlays++;
+    setTimeout(function () {
+      if (rewardGain === master) {
+        try { master.disconnect(); } catch (e) {}
+        rewardGain = null;
+      }
+    }, 2200);
   }
 
   // ===== subject registry =====
@@ -1969,6 +2060,9 @@
     clearVoiceOverride();
     refreshDevVoiceOptions();
   });
+  $('dev-sfx-play').addEventListener('click', function () {
+    playRewardFanfare(true);
+  });
   if (window.speechSynthesis && typeof speechSynthesis.addEventListener === 'function') {
     speechSynthesis.addEventListener('voiceschanged', refreshDevVoiceOptions);
   }
@@ -2009,6 +2103,11 @@
       setOverride: setVoiceOverride,
       clearOverride: clearVoiceOverride,
       refresh: refreshDevVoiceOptions
+    },
+    sfx: {
+      play: function () { playRewardFanfare(true); },
+      plays: function () { return rewardSfxPlays; },
+      state: function () { return audioCtx ? audioCtx.state : 'none'; }
     },
     previewResult: previewResult,
     dev: { enabled: DEV_PANEL, open: openDevPanel, close: closeDevPanel },
