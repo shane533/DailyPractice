@@ -823,7 +823,7 @@
   }
   // ===== TTS voice / prosody =====
   var VOICE_STORAGE_KEY = 'daily_voice_name';
-  var VOICE_PREF = ['Good News', 'Kathy', 'Junior', 'Samantha', 'Karen', 'Moira', 'Daniel'];
+  var VOICE_PREF = ['Kathy', 'Junior', 'Samantha', 'Karen', 'Moira', 'Daniel'];
   var PROSODY = {
     'Ready': { rate: 0.9, pitch: 1.0 },
     'Go!': { rate: 1.2, pitch: 1.15 },
@@ -852,7 +852,14 @@
   }
   function getVoiceOverride() {
     if (!DEV_PANEL) return '';
-    try { return localStorage.getItem(VOICE_STORAGE_KEY) || ''; } catch (e) { return ''; }
+    try {
+      var name = localStorage.getItem(VOICE_STORAGE_KEY) || '';
+      if (name === 'Good News') {
+        localStorage.removeItem(VOICE_STORAGE_KEY);
+        return '';
+      }
+      return name;
+    } catch (e) { return ''; }
   }
   function pickEnglishVoice(preferredName) {
     var voices = availableEnglishVoices();
