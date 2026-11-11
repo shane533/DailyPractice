@@ -365,6 +365,9 @@
     padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
     box-shadow: 0 -12px 40px rgba(15,23,42,.18);
     animation: sheetUp .25s ease both;
+    max-height: min(88dvh, 780px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .dev-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; font-weight: 700; }
   .dev-close { background: none; border: none; font-size: 18px; color: #9ca3af; cursor: pointer; padding: 4px 8px; }
@@ -376,6 +379,16 @@
     cursor: pointer; touch-action: manipulation;
   }
   .dev-btn:active { background: #eef2ff; border-color: #6366f1; }
+  .dev-voice { margin-top: 12px; padding-top: 12px; border-top: 1px solid #eef0f4; }
+  .dev-voice-title { font-size: 14px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+  .dev-select {
+    width: 100%; padding: 11px 12px; margin-bottom: 8px;
+    border: 1px solid #e5e7eb; border-radius: 12px;
+    background: #fff; color: #374151; font-size: 15px;
+  }
+  .dev-voice-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .dev-voice-row .dev-btn { flex: 1; margin-bottom: 0; padding: 10px 4px; font-size: 14px; }
+  #dev-voice-reset { font-size: 14px; padding: 10px; margin-bottom: 6px; }
   @keyframes sheetUp {
     from { transform: translateY(30px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
@@ -498,6 +511,17 @@
     <button class="dev-btn" data-tier="close">错 1 题 · 19 / 20</button>
     <button class="dev-btn" data-tier="oops">错 2 题 · 18 / 20</button>
     <button class="dev-btn" data-tier="timeout">超时 · 0 / 20</button>
+    <div class="dev-voice">
+      <div class="dev-voice-title">语音试听</div>
+      <select id="dev-voice-select" class="dev-select"></select>
+      <div class="dev-voice-row">
+        <button class="dev-btn dev-audition" data-sample="Good Job">试听鼓励</button>
+        <button class="dev-btn dev-audition" data-sample="Ready">试听 Ready</button>
+        <button class="dev-btn dev-audition" data-sample="Go!">试听 Go!</button>
+      </div>
+      <button class="dev-btn" id="dev-voice-reset">恢复默认声音</button>
+      <div class="dev-note" id="dev-voice-note"></div>
+    </div>
   </div>
 </div>
 
@@ -797,6 +821,61 @@
     if (len > 26) size = 22;
     el.style.fontSize = size + 'px';
   }
+  // ===== TTS voice / prosody =====
+  var VOICE_STORAGE_KEY = 'daily_voice_name';
+  var VOICE_PREF = ['Good News', 'Kathy', 'Junior', 'Samantha', 'Karen', 'Moira', 'Daniel'];
+  var PROSODY = {
+    'Ready': { rate: 0.9, pitch: 1.0 },
+    'Go!': { rate: 1.2, pitch: 1.15 },
+    'Well Done': { rate: 1.0, pitch: 1.15 },
+    'Good Job': { rate: 1.0, pitch: 1.15 },
+    'Excellent': { rate: 1.05, pitch: 1.2 },
+    'Not Bad': { rate: 0.95, pitch: 1.0 },
+    "It's OK": { rate: 0.95, pitch: 1.0 },
+    'Oops': { rate: 1.05, pitch: 1.1 },
+    'What a pity': { rate: 0.92, pitch: 0.95 }
+  };
+  function prosodyFor(text) {
+    return PROSODY[text] || { rate: 1, pitch: 1 };
+  }
+  function availableEnglishVoices() {
+    if (!window.speechSynthesis || !speechSynthesis.getVoices) return [];
+    return speechSynthesis.getVoices().filter(function (v) {
+      return /^en([-_]|$)/i.test(v.lang || '');
+    });
+  }
+  function findVoiceByName(voices, name) {
+    if (!name) return null;
+    for (var i = 0; i < voices.length; i++) if (voices[i].name === name) return voices[i];
+    for (var j = 0; j < voices.length; j++) if (voices[j].name.indexOf(name) === 0) return voices[j];
+    return null;
+  }
+  function getVoiceOverride() {
+    if (!DEV_PANEL) return '';
+    try { return localStorage.getItem(VOICE_STORAGE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function pickEnglishVoice(preferredName) {
+    var voices = availableEnglishVoices();
+    if (!voices.length) return null;
+    var v = findVoiceByName(voices, preferredName || getVoiceOverride());
+    if (v) return v;
+    for (var i = 0; i < VOICE_PREF.length; i++) {
+      v = findVoiceByName(voices, VOICE_PREF[i]);
+      if (v) return v;
+    }
+    for (var j = 0; j < voices.length; j++) if (voices[j].default) return voices[j];
+    return voices[0];
+  }
+  function currentVoiceName() {
+    var v = pickEnglishVoice();
+    return v ? v.name : '系统默认';
+  }
+  function setVoiceOverride(name) {
+    try { localStorage.setItem(VOICE_STORAGE_KEY, name); } catch (e) {}
+  }
+  function clearVoiceOverride() {
+    try { localStorage.removeItem(VOICE_STORAGE_KEY); } catch (e) {}
+  }
   function speakChinese(text) {
     if (!window.speechSynthesis || !text) return;
     speechSynthesis.cancel();
@@ -810,22 +889,25 @@
     var t = String(text).split('/')[0].trim();
     if (!t) return;
     speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(t);
-    u.lang = 'en-US';
-    u.rate = 0.85;
-    speechSynthesis.speak(u);
+    speechSynthesis.speak(makeEnglishUtterance(t, 0.85, 1));
   }
-  function makeEnglishUtterance(text, rate) {
+  function makeEnglishUtterance(text, rate, pitch, voiceName) {
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
     u.rate = rate || 1;
+    u.pitch = (typeof pitch === 'number') ? Math.max(0, Math.min(2, pitch)) : 1;
+    var voice = null;
+    if (voiceName) voice = findVoiceByName(availableEnglishVoices(), voiceName);
+    if (!voice) voice = pickEnglishVoice();
+    if (voice) u.voice = voice;
     return u;
   }
   function speakPhrase(text) {
     if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     try {
       speechSynthesis.cancel();
-      speechSynthesis.speak(makeEnglishUtterance(text, 0.95));
+      var p = prosodyFor(text);
+      speechSynthesis.speak(makeEnglishUtterance(text, p.rate, p.pitch));
     } catch (e) {}
   }
   function pickRandom(list) {
@@ -1263,8 +1345,10 @@
     if (synth && typeof SpeechSynthesisUtterance !== 'undefined') {
       try {
         synth.cancel();
-        var uReady = makeEnglishUtterance('Ready', 1);
-        var uGo = makeEnglishUtterance('Go!', 1);
+        var rp = prosodyFor('Ready');
+        var gp = prosodyFor('Go!');
+        var uReady = makeEnglishUtterance('Ready', rp.rate, rp.pitch);
+        var uGo = makeEnglishUtterance('Go!', gp.rate, gp.pitch);
         uReady.onstart = function () { started = true; };
         uReady.onend = showGo;
         uGo.onstart = function () { started = true; showGo(); };
@@ -1393,8 +1477,40 @@
     goHome();
     return true;
   }
-  function openDevPanel() { $('dev-overlay').hidden = false; }
+  function openDevPanel() {
+    $('dev-overlay').hidden = false;
+    refreshDevVoiceOptions();
+  }
   function closeDevPanel() { $('dev-overlay').hidden = true; }
+  function refreshDevVoiceOptions() {
+    var select = $('dev-voice-select');
+    if (!select) return;
+    var voices = availableEnglishVoices().slice().sort(function (a, b) {
+      return a.name.localeCompare(b.name);
+    });
+    var current = currentVoiceName();
+    select.innerHTML = '';
+    if (!voices.length) {
+      var loading = document.createElement('option');
+      loading.value = '';
+      loading.textContent = '正在加载语音…';
+      select.appendChild(loading);
+    } else {
+      voices.forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = v.name + ' · ' + v.lang;
+        if (v.name === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+    updateDevVoiceNote();
+  }
+  function updateDevVoiceNote() {
+    var el = $('dev-voice-note');
+    if (!el) return;
+    el.textContent = '当前使用：' + currentVoiceName() + '（切换后立即生效）';
+  }
 
   // ===== review flow =====
   function startReview() {
@@ -1823,9 +1939,32 @@
   $('dev-overlay').addEventListener('click', function (e) {
     if (e.target === this) closeDevPanel();
   });
-  Array.prototype.forEach.call(document.querySelectorAll('.dev-btn'), function (btn) {
+  Array.prototype.forEach.call(document.querySelectorAll('.dev-btn[data-tier]'), function (btn) {
     btn.addEventListener('click', function () { previewResult(btn.dataset.tier); });
   });
+  $('dev-voice-select').addEventListener('change', function () {
+    if (this.value) {
+      setVoiceOverride(this.value);
+      updateDevVoiceNote();
+    }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.dev-audition'), function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.dataset.sample;
+      var voiceName = $('dev-voice-select').value;
+      if (!voiceName || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+      speechSynthesis.cancel();
+      var p = prosodyFor(text);
+      speechSynthesis.speak(makeEnglishUtterance(text, p.rate, p.pitch, voiceName));
+    });
+  });
+  $('dev-voice-reset').addEventListener('click', function () {
+    clearVoiceOverride();
+    refreshDevVoiceOptions();
+  });
+  if (window.speechSynthesis && typeof speechSynthesis.addEventListener === 'function') {
+    speechSynthesis.addEventListener('voiceschanged', refreshDevVoiceOptions);
+  }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !$('dev-overlay').hidden) closeDevPanel();
   });
@@ -1833,6 +1972,7 @@
   // ===== init =====
   if (!DEV_PANEL) $('dev-open').hidden = true;
   $('app-version').textContent = 'v' + APP_VERSION;
+  refreshDevVoiceOptions();
   renderHome();
   showView('home');
 
@@ -1853,6 +1993,15 @@
       flashes: function () { return fw.flashes.length; },
       bursts: function () { return fw.burstSeq; },
       stop: stopFireworks
+    },
+    tts: {
+      voices: availableEnglishVoices,
+      current: currentVoiceName,
+      pick: pickEnglishVoice,
+      prosody: prosodyFor,
+      setOverride: setVoiceOverride,
+      clearOverride: clearVoiceOverride,
+      refresh: refreshDevVoiceOptions
     },
     previewResult: previewResult,
     dev: { enabled: DEV_PANEL, open: openDevPanel, close: closeDevPanel },
