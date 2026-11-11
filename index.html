@@ -319,10 +319,10 @@
   .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; opacity: 0; }
   .result-reveal .result-actions { animation: statIn .5s 1.45s both; }
 
-  /* 全对烟花：画在结算页上半区、内容背后，不阻挡点击 */
+  /* 全对烟花：覆盖结算页，粒子主要在上半区，火花可沿两侧下落 */
   #view-result { position: relative; }
   #fireworks {
-    position: absolute; left: 0; right: 0; top: 0; width: 100%; height: 46%;
+    position: absolute; inset: 0; width: 100%; height: 100%;
     display: none; pointer-events: none; z-index: 0;
   }
   #view-result .result-box { position: relative; z-index: 1; }
@@ -847,10 +847,18 @@
   }
 
   // ===== fireworks（仅全对） =====
-  var FW_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+  var FW_COLORS = ['#ffd166', '#ff6b9d', '#22d3ee', '#a78bfa', '#a3e635', '#fb923c', '#60a5fa', '#f472b6'];
+  var FW_ANCHORS = [
+    [0.20, 0.20], [0.50, 0.14], [0.80, 0.21],
+    [0.30, 0.38], [0.70, 0.36], [0.14, 0.52],
+    [0.86, 0.52], [0.50, 0.30], [0.22, 0.30],
+    [0.78, 0.30], [0.50, 0.50], [0.35, 0.18],
+    [0.65, 0.18], [0.18, 0.40], [0.82, 0.40]
+  ];
   var fw = {
     canvas: null, ctx: null, w: 0, h: 0,
-    parts: [], timers: [], raf: 0, startTimer: null, endTimer: null, running: false
+    parts: [], flashes: [], timers: [], raf: 0,
+    startTimer: null, endTimer: null, running: false, burstSeq: 0, tick: 0
   };
   function prefersReducedMotion() {
     return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -871,6 +879,9 @@
     }
     fw.running = false;
     fw.parts = [];
+    fw.flashes = [];
+    fw.burstSeq = 0;
+    fw.tick = 0;
   }
   function scheduleFireworks() {
     stopFireworks();
@@ -897,57 +908,98 @@
     fw.w = w;
     fw.h = h;
     fw.parts = [];
+    fw.flashes = [];
+    fw.burstSeq = 0;
+    fw.tick = 0;
     fw.running = true;
-    [0, 450, 900, 1350, 1800, 2300].forEach(function (delay) {
+    [
+      { at: 0, count: 2 },
+      { at: 550, count: 3 },
+      { at: 1100, count: 3 },
+      { at: 1650, count: 3 },
+      { at: 2200, count: 4 }
+    ].forEach(function (wave) {
       fw.timers.push(setTimeout(function () {
-        if (fw.running) spawnFireworkBurst();
-      }, delay));
+        if (!fw.running) return;
+        for (var i = 0; i < wave.count; i++) spawnFireworkBurst();
+      }, wave.at));
     });
-    fw.endTimer = setTimeout(stopFireworks, 4300);
+    fw.endTimer = setTimeout(stopFireworks, 4700);
     drawFireworksFrame();
   }
   function spawnFireworkBurst() {
-    var cx = fw.w * (0.15 + Math.random() * 0.70);
-    var cy = fw.h * (0.20 + Math.random() * 0.55);
+    if (fw.parts.length > 1200) return;
+    var anchor = FW_ANCHORS[fw.burstSeq % FW_ANCHORS.length];
+    fw.burstSeq++;
+    var cx = fw.w * Math.max(0.08, Math.min(0.92, anchor[0] + (Math.random() - 0.5) * 0.10));
+    var cy = fw.h * Math.max(0.08, Math.min(0.62, anchor[1] + (Math.random() - 0.5) * 0.10));
     var color = FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)];
-    var n = 50 + Math.floor(Math.random() * 20);
+    fw.flashes.push({ x: cx, y: cy, r: 2, life: 1, color: color });
+    var n = 55 + Math.floor(Math.random() * 20);
     for (var i = 0; i < n; i++) {
       var ang = Math.random() * Math.PI * 2;
-      var sp = 1.8 + Math.random() * 3.4;
+      var sp = 1.6 + Math.random() * 4.0;
+      var tint = Math.random() < 0.18 ? '#ffe9a8' : (Math.random() < 0.08 ? '#ffffff' : color);
       fw.parts.push({
         x: cx, y: cy,
         vx: Math.cos(ang) * sp,
         vy: Math.sin(ang) * sp,
         life: 1,
-        decay: 0.008 + Math.random() * 0.014,
-        size: 1.6 + Math.random() * 1.8,
-        color: Math.random() < 0.22 ? '#ffffff' : color
+        decay: 0.008 + Math.random() * 0.015,
+        size: 1.5 + Math.random() * 2.2,
+        color: tint,
+        twinkle: Math.random() < 0.35,
+        phase: Math.random() * Math.PI * 2
       });
     }
   }
   function drawFireworksFrame() {
     if (!fw.running) return;
     var ctx = fw.ctx;
+    fw.tick++;
     ctx.clearRect(0, 0, fw.w, fw.h);
     ctx.globalCompositeOperation = 'lighter';
+
+    for (var j = fw.flashes.length - 1; j >= 0; j--) {
+      var fl = fw.flashes[j];
+      fl.r += 3.2;
+      fl.life -= 0.07;
+      if (fl.life <= 0) { fw.flashes.splice(j, 1); continue; }
+      ctx.globalAlpha = fl.life * 0.55;
+      ctx.strokeStyle = fl.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(fl.x, fl.y, fl.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     for (var i = fw.parts.length - 1; i >= 0; i--) {
       var p = fw.parts[i];
       p.x += p.vx;
       p.y += p.vy;
-      p.vx *= 0.982;
-      p.vy = p.vy * 0.982 + 0.05;
+      p.vx *= 0.98;
+      p.vy = p.vy * 0.98 + 0.06;
       p.life -= p.decay;
       if (p.life <= 0) { fw.parts.splice(i, 1); continue; }
-      ctx.globalAlpha = Math.max(0, p.life);
+      var alpha = Math.max(0, p.life);
+      if (p.twinkle) {
+        alpha *= 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(fw.tick * 0.28 + p.phase));
+      }
+      ctx.globalAlpha = alpha * 0.16;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 3.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
       ctx.strokeStyle = p.color;
       ctx.lineWidth = Math.max(0.6, p.size * p.life);
       ctx.beginPath();
-      ctx.moveTo(p.x - p.vx * 2.4, p.y - p.vy * 2.4);
+      ctx.moveTo(p.x - p.vx * 3.2, p.y - p.vy * 3.2);
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(0.4, p.size * p.life * 0.6), 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, Math.max(0.5, p.size * p.life * 0.65), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -1793,6 +1845,8 @@
     fireworks: {
       active: function () { return fw.running; },
       count: function () { return fw.parts.length; },
+      flashes: function () { return fw.flashes.length; },
+      bursts: function () { return fw.burstSeq; },
       stop: stopFireworks
     },
     previewResult: previewResult,
