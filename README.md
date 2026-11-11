@@ -19,6 +19,7 @@
 - 答题页左上角可二次确认退出测试，返回主界面，不保存本次成绩。
 - 每科开始测试时播放 Ready → Go! 开场动画与语音，Go 播报结束后才开始计时。
 - 结算时按成绩随机显示鼓励大字并语音播报（全对 / 错 1 题 / 错 2 题以上或超时）。
+- 结算表演逐项揭晓：鼓励语弹入、成绩与按钮错峰出现；全对时播放约 4 秒烟花粒子特效。
 - 历史记录按科目分别保存，沿用原应用的 localStorage key，可与旧版记录共存。
 
 ## 文件结构
@@ -60,7 +61,7 @@ python3 -m http.server 8000
 
 ## 版本管理
 
-当前版本 **1.1.1**，显示在首页右下角，定义于 [index.html](index.html) 的 `APP_VERSION`。
+当前版本 **1.1.2**，显示在首页右下角，定义于 [index.html](index.html) 的 `APP_VERSION`。
 
 版本号遵循 Semantic Versioning，完整规则见 [Changelog.md](Changelog.md)：
 
@@ -69,6 +70,10 @@ python3 -m http.server 8000
 - **MAJOR**：仅在明确要求时更新。
 
 每次改动按上述规则确定新版本号，然后同步更新 `APP_VERSION`、`CACHE_VERSION`，并在 Changelog 记录改动。
+
+### 开发测试面板
+
+首页底部有临时「测试」按钮，可模拟全对 / 错 1 题 / 错 2 题 / 超时四种结算，方便调试反馈效果；模拟结果不写入历史记录。确认效果后，把 [index.html](index.html) 中的 `DEV_PANEL` 改为 `false` 即可隐藏入口。
 
 ## 数据与旧版兼容
 

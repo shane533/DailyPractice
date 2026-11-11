@@ -124,7 +124,14 @@
     display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;
     font-size: 12px; color: #9ca3af;
   }
+  .home-foot-right { display: flex; align-items: center; gap: 14px; }
   .home-foot .version { font-variant-numeric: tabular-nums; color: #b6bcc8; }
+  .dev-open {
+    background: none; border: 1px solid #d1d5db; color: #9ca3af;
+    border-radius: 999px; font-size: 11px; padding: 3px 10px;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .dev-open:active { background: #f3f4f6; }
 
   /* ---- levels ---- */
   .levels-head { text-align: center; margin-bottom: 16px; }
@@ -279,27 +286,46 @@
   /* ---- result ---- */
   .result-cheer {
     text-align: center; font-weight: 900; letter-spacing: 1px; line-height: 1.2;
-    font-size: clamp(28px, 9vw, 40px); padding: 2px 0 10px;
+    font-size: clamp(28px, 9vw, 40px); padding: 2px 0 10px; opacity: 0;
   }
   .result-cheer.perfect { color: var(--right); }
   .result-cheer.close { color: #f59e0b; }
   .result-cheer.oops { color: #f97316; }
-  .result-cheer.pop { animation: cheerPop .6s cubic-bezier(.2,.8,.3,1) both; }
+  .result-reveal .result-cheer { animation: cheerPop .9s cubic-bezier(.2,.8,.3,1) both; }
   @keyframes cheerPop {
     0% { opacity: 0; transform: translateY(16px) scale(.7); }
-    60% { opacity: 1; transform: translateY(-4px) scale(1.06); }
-    100% { transform: translateY(0) scale(1); }
+    55% { opacity: 1; transform: translateY(-6px) scale(1.07); }
+    78% { transform: translateY(0) scale(.98); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
   }
   .result-box { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
   .result-stat {
     display: flex; justify-content: space-between; align-items: baseline;
     padding: 13px 18px; background: #f9fafb; border-radius: 12px; font-size: 17px;
+    opacity: 0;
+  }
+  .result-reveal .result-stat:nth-child(2) { animation: statIn .45s .45s both; }
+  .result-reveal .result-stat:nth-child(3) { animation: statIn .45s .70s both; }
+  .result-reveal .result-stat:nth-child(4) { animation: statIn .45s .95s both; }
+  .result-reveal .result-stat:nth-child(5) { animation: statIn .45s 1.20s both; }
+  @keyframes statIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .result-stat .label { color: var(--muted); }
   .result-stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .result-stat.correct .value { color: var(--right); }
   .result-stat.wrong .value { color: var(--wrong); }
-  .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; opacity: 0; }
+  .result-reveal .result-actions { animation: statIn .5s 1.45s both; }
+
+  /* 全对烟花：画在结算页上半区、内容背后，不阻挡点击 */
+  #view-result { position: relative; }
+  #fireworks {
+    position: absolute; left: 0; right: 0; top: 0; width: 100%; height: 46%;
+    display: none; pointer-events: none; z-index: 0;
+  }
+  #view-result .result-box { position: relative; z-index: 1; }
 
   /* ---- start overlay ---- */
   .start-overlay {
@@ -322,9 +348,41 @@
     100% { transform: scale(1) translateY(0); }
   }
 
+  /* ---- dev test panel ---- */
+  .dev-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(15,23,42,.35);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .dev-sheet {
+    width: 100%; max-width: 480px; background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 40px rgba(15,23,42,.18);
+    animation: sheetUp .25s ease both;
+  }
+  .dev-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; font-weight: 700; }
+  .dev-close { background: none; border: none; font-size: 18px; color: #9ca3af; cursor: pointer; padding: 4px 8px; }
+  .dev-note { font-size: 12px; color: #9ca3af; margin: 4px 0 14px; }
+  .dev-btn {
+    width: 100%; padding: 13px; margin-bottom: 8px;
+    border: 1px solid #e5e7eb; background: #f9fafb; border-radius: 12px;
+    font-size: 16px; font-weight: 600; color: #374151;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .dev-btn:active { background: #eef2ff; border-color: #6366f1; }
+  @keyframes sheetUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
   /* ---- responsive ---- */
   @media (prefers-reduced-motion: reduce) {
-    .start-word.pop, .result-cheer.pop { animation: none; }
+    .start-word.pop { animation: none; }
+    .dev-sheet { animation: none; }
+    .result-reveal .result-cheer,
+    .result-reveal .result-stat,
+    .result-reveal .result-actions { animation: none; opacity: 1; transform: none; }
   }
   @media (max-height: 700px) {
     .pinyin-body .char { font-size: 72px; }
@@ -359,7 +417,10 @@
     <div class="subject-list" id="subject-list"></div>
     <div class="home-foot">
       <span>选择一科开始今天的练习</span>
-      <span class="version" id="app-version"></span>
+      <span class="home-foot-right">
+        <button class="dev-open" id="dev-open">测试</button>
+        <span class="version" id="app-version"></span>
+      </span>
     </div>
   </section>
 
@@ -393,6 +454,7 @@
 
   <!-- Result -->
   <section id="view-result" class="view" hidden>
+    <canvas id="fireworks" aria-hidden="true"></canvas>
     <div class="result-box">
       <div class="result-cheer" id="r-cheer" hidden></div>
       <div class="result-stat"><span class="label">完成</span><span class="value" id="r-done">—</span></div>
@@ -419,6 +481,21 @@
 </div>
 <div id="ghost"></div>
 
+<!-- 开发调试：结算效果测试面板 -->
+<div class="dev-overlay" id="dev-overlay" hidden>
+  <div class="dev-sheet" role="dialog" aria-modal="true" aria-label="结算测试">
+    <div class="dev-head">
+      <span>结算测试</span>
+      <button class="dev-close" id="dev-close" aria-label="关闭">✕</button>
+    </div>
+    <div class="dev-note">开发调试用 · 模拟结果不写入历史记录</div>
+    <button class="dev-btn" data-tier="perfect">全对 · 20 / 20</button>
+    <button class="dev-btn" data-tier="close">错 1 题 · 19 / 20</button>
+    <button class="dev-btn" data-tier="oops">错 2 题 · 18 / 20</button>
+    <button class="dev-btn" data-tier="timeout">超时 · 0 / 20</button>
+  </div>
+</div>
+
 <script src="data/pinyin-data.js"></script>
 <script src="data/pinyin-words.js"></script>
 <script src="data/en-words.js"></script>
@@ -429,7 +506,9 @@
   var PINYIN_LEVELS = window.LEVELS || {};
   var PINYIN_WORDS = window.WORDS_DB || {};
   var WORD_DB = window.WORD_DB || { l1: [], l2: [], l3: [] };
-  var APP_VERSION = '1.1.1';
+  var APP_VERSION = '1.1.2';
+  // 开发调试：结算测试面板。效果确认后改为 false 即可隐藏首页入口。
+  var DEV_PANEL = true;
   var CHEERS = {
     perfect: ['Well Done', 'Good Job', 'Excellent'],
     close: ["Not Bad", "It's OK"],
@@ -759,8 +838,121 @@
     el.hidden = false;
     el.className = 'result-cheer ' + feedback.tier;
     el.textContent = feedback.text;
-    void el.offsetWidth;
-    el.classList.add('pop');
+  }
+  function runResultShow() {
+    var box = $('view-result').querySelector('.result-box');
+    box.classList.remove('result-reveal');
+    void box.offsetWidth;
+    box.classList.add('result-reveal');
+  }
+
+  // ===== fireworks（仅全对） =====
+  var FW_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+  var fw = {
+    canvas: null, ctx: null, w: 0, h: 0,
+    parts: [], timers: [], raf: 0, startTimer: null, endTimer: null, running: false
+  };
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function stopFireworks() {
+    if (fw.startTimer) { clearTimeout(fw.startTimer); fw.startTimer = null; }
+    if (fw.endTimer) { clearTimeout(fw.endTimer); fw.endTimer = null; }
+    fw.timers.forEach(function (t) { clearTimeout(t); });
+    fw.timers = [];
+    if (fw.raf) { cancelAnimationFrame(fw.raf); fw.raf = 0; }
+    if (fw.canvas) {
+      var ctx = fw.canvas.getContext('2d');
+      if (ctx) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, fw.canvas.width, fw.canvas.height);
+      }
+      fw.canvas.style.display = 'none';
+    }
+    fw.running = false;
+    fw.parts = [];
+  }
+  function scheduleFireworks() {
+    stopFireworks();
+    if (prefersReducedMotion()) return;
+    fw.startTimer = setTimeout(function () {
+      fw.startTimer = null;
+      startFireworks();
+    }, 400);
+  }
+  function startFireworks() {
+    var canvas = $('fireworks');
+    if (!canvas) return;
+    canvas.style.display = 'block';
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) { canvas.style.display = 'none'; return; }
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    var ctx = canvas.getContext('2d');
+    if (!ctx) { canvas.style.display = 'none'; return; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fw.canvas = canvas;
+    fw.ctx = ctx;
+    fw.w = w;
+    fw.h = h;
+    fw.parts = [];
+    fw.running = true;
+    [0, 450, 900, 1350, 1800, 2300].forEach(function (delay) {
+      fw.timers.push(setTimeout(function () {
+        if (fw.running) spawnFireworkBurst();
+      }, delay));
+    });
+    fw.endTimer = setTimeout(stopFireworks, 4300);
+    drawFireworksFrame();
+  }
+  function spawnFireworkBurst() {
+    var cx = fw.w * (0.15 + Math.random() * 0.70);
+    var cy = fw.h * (0.20 + Math.random() * 0.55);
+    var color = FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)];
+    var n = 50 + Math.floor(Math.random() * 20);
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var sp = 1.8 + Math.random() * 3.4;
+      fw.parts.push({
+        x: cx, y: cy,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp,
+        life: 1,
+        decay: 0.008 + Math.random() * 0.014,
+        size: 1.6 + Math.random() * 1.8,
+        color: Math.random() < 0.22 ? '#ffffff' : color
+      });
+    }
+  }
+  function drawFireworksFrame() {
+    if (!fw.running) return;
+    var ctx = fw.ctx;
+    ctx.clearRect(0, 0, fw.w, fw.h);
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = fw.parts.length - 1; i >= 0; i--) {
+      var p = fw.parts[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.982;
+      p.vy = p.vy * 0.982 + 0.05;
+      p.life -= p.decay;
+      if (p.life <= 0) { fw.parts.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = Math.max(0.6, p.size * p.life);
+      ctx.beginPath();
+      ctx.moveTo(p.x - p.vx * 2.4, p.y - p.vy * 2.4);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.4, p.size * p.life * 0.6), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    fw.raf = requestAnimationFrame(drawFireworksFrame);
   }
 
   // ===== subject registry =====
@@ -809,7 +1001,8 @@
   var app = {
     view: 'home', subjectKey: null, levelKey: null,
     questions: [], idx: 0, startTime: 0, deadline: 0,
-    panel: null, reviewQuestions: [], reviewIdx: 0, locked: false
+    panel: null, reviewQuestions: [], reviewIdx: 0, locked: false,
+    devSim: false
   };
   var timerId = null;
 
@@ -819,6 +1012,7 @@
     });
     app.view = name;
     if (name === 'home') $('app-bar').hidden = true;
+    if (name !== 'result') stopFireworks();
   }
   function setBar(opts) {
     $('app-bar').hidden = false;
@@ -1071,6 +1265,32 @@
     if (app.idx >= SUBJECTS[app.subjectKey].total) finishQuiz(false);
     else loadQuizQuestion();
   }
+  function presentResult(opts) {
+    stopFireworks();
+    var bad = opts.answeredCount - opts.correctCount;
+    $('r-done').textContent = opts.answeredCount + ' / ' + opts.total;
+    $('r-ok').textContent = opts.correctCount;
+    $('r-bad').textContent = bad;
+    $('r-time').textContent = fmtDur(opts.durationMs);
+    app.reviewQuestions = opts.wrongQuestions || [];
+    $('r-review').hidden = opts.devSim || app.reviewQuestions.length === 0;
+    $('r-home').textContent = opts.devSim ? '关闭测试' : '回到难度选择';
+    if (opts.save) {
+      saveHistory(SUBJECTS[app.subjectKey].historyKey, {
+        level: app.levelKey, correct: opts.correctCount, total: opts.total,
+        durationMs: opts.durationMs, finishedAt: Date.now()
+      });
+    }
+    var feedback = resultFeedback(opts.timedOut, opts.answeredCount, opts.correctCount, opts.total);
+    renderCheer(feedback);
+    setBar({ back: true, title: opts.devSim ? '本次成绩 · 测试' : '本次成绩', right: '' });
+    showView('result');
+    runResultShow();
+    speakPhrase(feedback.text);
+    if (feedback.tier === 'perfect') scheduleFireworks();
+    else stopFireworks();
+  }
+
   function finishQuiz(timedOut) {
     if (app.view !== 'quiz') return;
     stopTimer();
@@ -1078,23 +1298,46 @@
     var elapsed = Math.min(Math.max(0, Date.now() - app.startTime), s.durationMs);
     var answered = app.questions.filter(function (q) { return q.answered; });
     var ok = answered.filter(function (q) { return q.correct; }).length;
-    var bad = answered.length - ok;
-    $('r-done').textContent = answered.length + ' / ' + s.total;
-    $('r-ok').textContent = ok;
-    $('r-bad').textContent = bad;
-    $('r-time').textContent = fmtDur(elapsed);
-    app.reviewQuestions = answered.filter(function (q) { return !q.correct; });
-    $('r-review').hidden = app.reviewQuestions.length === 0;
-    saveHistory(s.historyKey, {
-      level: app.levelKey, correct: ok, total: s.total,
-      durationMs: elapsed, finishedAt: Date.now()
+    var wrong = answered.filter(function (q) { return !q.correct; });
+    presentResult({
+      total: s.total, answeredCount: answered.length, correctCount: ok,
+      durationMs: elapsed, timedOut: timedOut, wrongQuestions: wrong,
+      save: true, devSim: false
     });
-    var feedback = resultFeedback(timedOut, answered.length, ok, s.total);
-    renderCheer(feedback);
-    setBar({ back: true, title: '本次成绩', right: '' });
-    showView('result');
-    speakPhrase(feedback.text);
   }
+
+  // ===== 开发调试：模拟结算 =====
+  function previewResult(tier) {
+    var cfg = {
+      perfect: { answeredCount: 20, correctCount: 20, timedOut: false, durationMs: 8 * 60000 + 32000 },
+      close: { answeredCount: 20, correctCount: 19, timedOut: false, durationMs: 8 * 60000 + 12000 },
+      oops: { answeredCount: 20, correctCount: 18, timedOut: false, durationMs: 8 * 60000 },
+      timeout: { answeredCount: 0, correctCount: 0, timedOut: true, durationMs: 10 * 60000 }
+    }[tier];
+    if (!cfg) return;
+    closeDevPanel();
+    stopTimer();
+    stopFireworks();
+    if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
+    app.devSim = true;
+    app.subjectKey = 'calc';
+    app.levelKey = '10_no_carry';
+    document.body.dataset.subject = 'calc';
+    presentResult({
+      total: 20, answeredCount: cfg.answeredCount, correctCount: cfg.correctCount,
+      durationMs: cfg.durationMs, timedOut: cfg.timedOut, wrongQuestions: [],
+      save: false, devSim: true
+    });
+  }
+  function endDevSim() {
+    if (!app.devSim) return false;
+    app.devSim = false;
+    stopFireworks();
+    goHome();
+    return true;
+  }
+  function openDevPanel() { $('dev-overlay').hidden = false; }
+  function closeDevPanel() { $('dev-overlay').hidden = true; }
 
   // ===== review flow =====
   function startReview() {
@@ -1497,7 +1740,10 @@
   // ===== wire static controls =====
   $('start-btn').addEventListener('click', startQuiz);
   $('ready-back').addEventListener('click', function () { openLevels(app.subjectKey); });
-  $('r-home').addEventListener('click', function () { openLevels(app.subjectKey); });
+  $('r-home').addEventListener('click', function () {
+    if (endDevSim()) return;
+    openLevels(app.subjectKey);
+  });
   $('r-review').addEventListener('click', startReview);
   $('clear-btn').addEventListener('click', function () {
     if (confirm('确定清除全部历史记录吗？')) {
@@ -1506,6 +1752,7 @@
     }
   });
   $('nav-back').addEventListener('click', function () {
+    if (endDevSim()) return;
     if (app.view === 'levels') goHome();
     else if (app.view === 'quiz') {
       if (confirm('确定退出本次测试吗？当前进度不会保存。')) goHome();
@@ -1513,7 +1760,21 @@
     else if (app.view === 'ready' || app.view === 'result') openLevels(app.subjectKey);
   });
 
+  // ===== dev test panel =====
+  $('dev-open').addEventListener('click', function () { if (DEV_PANEL) openDevPanel(); });
+  $('dev-close').addEventListener('click', closeDevPanel);
+  $('dev-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closeDevPanel();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.dev-btn'), function (btn) {
+    btn.addEventListener('click', function () { previewResult(btn.dataset.tier); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('dev-overlay').hidden) closeDevPanel();
+  });
+
   // ===== init =====
+  if (!DEV_PANEL) $('dev-open').hidden = true;
   $('app-version').textContent = 'v' + APP_VERSION;
   renderHome();
   showView('home');
@@ -1529,6 +1790,13 @@
       makeQuestion: makePinyinQuestion, poolOf: pinyinPoolOf, DB: PINYIN_DB, LEVELS: PINYIN_LEVELS
     },
     word: { generate: generateWord, poolOf: wordPoolOf, formatPinyin: formatPinyin, DB: WORD_DB },
+    fireworks: {
+      active: function () { return fw.running; },
+      count: function () { return fw.parts.length; },
+      stop: stopFireworks
+    },
+    previewResult: previewResult,
+    dev: { enabled: DEV_PANEL, open: openDevPanel, close: closeDevPanel },
     openLevels: openLevels,
     goHome: goHome
   };
