@@ -429,7 +429,7 @@
   var PINYIN_LEVELS = window.LEVELS || {};
   var PINYIN_WORDS = window.WORDS_DB || {};
   var WORD_DB = window.WORD_DB || { l1: [], l2: [], l3: [] };
-  var APP_VERSION = '1.1.0';
+  var APP_VERSION = '1.1.1';
   var CHEERS = {
     perfect: ['Well Done', 'Good Job', 'Excellent'],
     close: ["Not Bad", "It's OK"],
@@ -1040,7 +1040,7 @@
     app.deadline = 0;
     app.reviewQuestions = [];
     app.locked = false;
-    setBar({ back: false, title: '', right: '<span class="timer" id="bar-timer">' + fmtClock(s.durationMs) + '</span>' });
+    setBar({ back: true, title: '', right: '<span class="timer" id="bar-timer">' + fmtClock(s.durationMs) + '</span>' });
     showView('quiz');
     mountPanel('quiz');
     loadQuizQuestion();
@@ -1507,6 +1507,9 @@
   });
   $('nav-back').addEventListener('click', function () {
     if (app.view === 'levels') goHome();
+    else if (app.view === 'quiz') {
+      if (confirm('确定退出本次测试吗？当前进度不会保存。')) goHome();
+    }
     else if (app.view === 'ready' || app.view === 'result') openLevels(app.subjectKey);
   });
 

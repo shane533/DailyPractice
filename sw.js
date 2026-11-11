@@ -1,7 +1,7 @@
 // 每日练习 — Service Worker
 // 策略:app shell 用 cache-first;离线时直接走缓存,在线时后台更新。
 // CACHE_VERSION 与 index.html 的 APP_VERSION 保持一致;发版时一起更新。
-const CACHE_VERSION = 'v1.1.0';
+const CACHE_VERSION = 'v1.1.1';
 const CACHE_NAME = `daily-practice-${CACHE_VERSION}`;
 const APP_SHELL = [
   './',
