@@ -285,6 +285,7 @@
 
   /* ---- result ---- */
   .result-cheer {
+    position: relative; z-index: 2;
     text-align: center; font-weight: 900; letter-spacing: 1px; line-height: 1.2;
     font-size: clamp(28px, 9vw, 40px); padding: 2px 0 10px; opacity: 0;
   }
@@ -300,6 +301,7 @@
   }
   .result-box { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
   .result-stat {
+    position: relative; z-index: 0;
     display: flex; justify-content: space-between; align-items: baseline;
     padding: 13px 18px; background: #f9fafb; border-radius: 12px; font-size: 17px;
     opacity: 0;
@@ -316,14 +318,17 @@
   .result-stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .result-stat.correct .value { color: var(--right); }
   .result-stat.wrong .value { color: var(--wrong); }
-  .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; opacity: 0; }
+  .result-actions {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; gap: 10px; margin-top: 16px; opacity: 0;
+  }
   .result-reveal .result-actions { animation: statIn .5s 1.45s both; }
 
-  /* 全对烟花：覆盖结算页，粒子主要在上半区，火花可沿两侧下落 */
+  /* 全对烟花：显示在成绩条目上方，鼓励语和按钮保持在上层 */
   #view-result { position: relative; }
   #fireworks {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    display: none; pointer-events: none; z-index: 0;
+    display: none; pointer-events: none; z-index: 1;
   }
   #view-result .result-box { position: relative; z-index: 1; }
 
@@ -454,8 +459,8 @@
 
   <!-- Result -->
   <section id="view-result" class="view" hidden>
-    <canvas id="fireworks" aria-hidden="true"></canvas>
     <div class="result-box">
+      <canvas id="fireworks" aria-hidden="true"></canvas>
       <div class="result-cheer" id="r-cheer" hidden></div>
       <div class="result-stat"><span class="label">完成</span><span class="value" id="r-done">—</span></div>
       <div class="result-stat correct"><span class="label">正确</span><span class="value" id="r-ok">—</span></div>
