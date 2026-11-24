@@ -516,10 +516,18 @@
       <button class="dev-btn" id="dev-sfx-play">试听全对奖励音效</button>
     </div>
     <div class="dev-voice">
-      <div class="dev-voice-title">语音试听</div>
+      <div class="dev-voice-title">结算语音（预录制）</div>
+      <div class="dev-voice-row">
+        <button class="dev-btn dev-feedback-audio" data-tier="perfect">全对</button>
+        <button class="dev-btn dev-feedback-audio" data-tier="close">错一道</button>
+        <button class="dev-btn dev-feedback-audio" data-tier="oops">错两道</button>
+      </div>
+      <button class="dev-btn" id="dev-feedback-stop">停止播放</button>
+    </div>
+    <div class="dev-voice">
+      <div class="dev-voice-title">系统语音（Ready / Go! 与英语朗读）</div>
       <select id="dev-voice-select" class="dev-select"></select>
       <div class="dev-voice-row">
-        <button class="dev-btn dev-audition" data-sample="Good Job">试听鼓励</button>
         <button class="dev-btn dev-audition" data-sample="Ready">试听 Ready</button>
         <button class="dev-btn dev-audition" data-sample="Go!">试听 Go!</button>
       </div>
@@ -539,7 +547,7 @@
   var PINYIN_LEVELS = window.LEVELS || {};
   var PINYIN_WORDS = window.WORDS_DB || {};
   var WORD_DB = window.WORD_DB || { l1: [], l2: [], l3: [] };
-  var APP_VERSION = '1.1.2';
+  var APP_VERSION = '1.2.0';
   // 开发调试：结算测试面板。效果确认后改为 false 即可隐藏首页入口。
   var DEV_PANEL = true;
   var CHEERS = {
@@ -921,11 +929,84 @@
       speechSynthesis.speak(makeEnglishUtterance(text, p.rate, p.pitch));
     } catch (e) {}
   }
+
+  // ===== 结算语音（预录制素材，替代系统 TTS 的鼓励播报） =====
+  // 三档各一段录音；超时档没有对应录音，仍走系统 TTS。
+  var FEEDBACK_AUDIO = {
+    perfect: '全对.m4a',
+    close: '错一道.m4a',
+    oops: '错两道.m4a'
+  };
+  var feedbackAudio = { el: {}, playing: false, unlocked: false, fallbackText: '', broken: {} };
+  function ensureFeedbackAudio(tier) {
+    if (feedbackAudio.el[tier]) return feedbackAudio.el[tier];
+    var src = FEEDBACK_AUDIO[tier];
+    if (!src || typeof Audio === 'undefined') return null;
+    var el = new Audio();
+    el.preload = 'auto';
+    el.src = encodeURI(src);
+    el.setAttribute('playsinline', '');
+    el.addEventListener('ended', function () { feedbackAudio.playing = false; });
+    el.addEventListener('error', function () {
+      feedbackAudio.broken[tier] = true;
+      feedbackAudio.playing = false;
+      // 素材缺失或格式不支持：回退到系统 TTS，保证仍有语音反馈
+      speakPhrase(feedbackAudio.fallbackText);
+    });
+    feedbackAudio.el[tier] = el;
+    return el;
+  }
+  // iOS 要求在用户手势内“解锁”媒体元素：首次点击时静音试播一次。
+  function primeFeedbackAudio() {
+    if (feedbackAudio.unlocked) return;
+    feedbackAudio.unlocked = true;
+    Object.keys(FEEDBACK_AUDIO).forEach(function (tier) {
+      var el = ensureFeedbackAudio(tier);
+      if (!el) return;
+      function reset() {
+        try { el.pause(); el.currentTime = 0; } catch (e) {}
+        el.muted = false;
+      }
+      try {
+        el.muted = true;
+        var p = el.play();
+        if (p && typeof p.then === 'function') p.then(reset, reset);
+        else reset();
+      } catch (e) { el.muted = false; }
+    });
+  }
+  function stopFeedbackAudio() {
+    feedbackAudio.playing = false;
+    Object.keys(feedbackAudio.el).forEach(function (tier) {
+      var el = feedbackAudio.el[tier];
+      try { el.pause(); el.currentTime = 0; } catch (e) {}
+    });
+  }
+  function playFeedbackAudio(feedback) {
+    var tier = feedback && feedback.tier;
+    feedbackAudio.fallbackText = (feedback && feedback.text) || '';
+    var el = FEEDBACK_AUDIO[tier] ? ensureFeedbackAudio(tier) : null;
+    if (!el) { speakPhrase(feedbackAudio.fallbackText); return; }
+    stopFeedbackAudio();
+    if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
+    feedbackAudio.playing = true;
+    try { el.currentTime = 0; } catch (e) {}
+    var p = el.play();
+    if (p && typeof p.then === 'function') {
+      p.catch(function () {
+        // 被自动播放策略拦截（如超时后由定时器触发结算）或素材不可用 → 用系统 TTS 兜底
+        feedbackAudio.playing = false;
+        speakPhrase(feedbackAudio.fallbackText);
+      });
+    }
+  }
+  // 打出结算时立即预加载，避免首次播放卡顿
+  Object.keys(FEEDBACK_AUDIO).forEach(function (tier) { ensureFeedbackAudio(tier); });
   function pickRandom(list) {
     return list[Math.floor(Math.random() * list.length)];
   }
   function resultFeedback(timedOut, answeredCount, correctCount, total) {
-    if (timedOut) return { tier: 'oops', text: pickRandom(CHEERS.oops) };
+    if (timedOut) return { tier: 'oops', text: pickRandom(CHEERS.oops), timedOut: true };
     var wrong = answeredCount - correctCount;
     if (wrong === 0 && answeredCount === total) return { tier: 'perfect', text: pickRandom(CHEERS.perfect) };
     if (wrong === 1) return { tier: 'close', text: pickRandom(CHEERS.close) };
@@ -1122,7 +1203,10 @@
     return audioCtx;
   }
   function unlockAudio() { getAudioCtx(); }
-  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('pointerdown', function () {
+    unlockAudio();
+    primeFeedbackAudio();
+  }, { once: true });
   function playRewardFanfare(force) {
     if (!force && prefersReducedMotion()) return;
     var ctx = getAudioCtx();
@@ -1133,7 +1217,8 @@
     }
     var now = ctx.currentTime + 0.04;
     var master = ctx.createGain();
-    master.gain.value = 0.16;
+    // 预录制鼓励语正在播放时压低音效，避免盖住人声
+    master.gain.value = feedbackAudio.playing ? 0.09 : 0.16;
     master.connect(ctx.destination);
     rewardGain = master;
 
@@ -1249,7 +1334,7 @@
     });
     app.view = name;
     if (name === 'home') $('app-bar').hidden = true;
-    if (name !== 'result') stopFireworks();
+    if (name !== 'result') { stopFireworks(); stopFeedbackAudio(); }
   }
   function setBar(opts) {
     $('app-bar').hidden = false;
@@ -1525,7 +1610,8 @@
     setBar({ back: true, title: opts.devSim ? '本次成绩 · 测试' : '本次成绩', right: '' });
     showView('result');
     runResultShow();
-    speakPhrase(feedback.text);
+    if (feedback.timedOut) speakPhrase(feedback.text);
+    else playFeedbackAudio(feedback);
     if (feedback.tier === 'perfect') scheduleFireworks();
     else stopFireworks();
   }
@@ -1557,6 +1643,7 @@
     closeDevPanel();
     stopTimer();
     stopFireworks();
+    stopFeedbackAudio();
     if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
     app.devSim = true;
     app.subjectKey = 'calc';
@@ -2046,6 +2133,12 @@
       updateDevVoiceNote();
     }
   });
+  Array.prototype.forEach.call(document.querySelectorAll('.dev-feedback-audio'), function (btn) {
+    btn.addEventListener('click', function () {
+      playFeedbackAudio({ tier: btn.dataset.tier, text: '' });
+    });
+  });
+  $('dev-feedback-stop').addEventListener('click', function () { stopFeedbackAudio(); });
   Array.prototype.forEach.call(document.querySelectorAll('.dev-audition'), function (btn) {
     btn.addEventListener('click', function () {
       var text = btn.dataset.sample;
@@ -2103,6 +2196,25 @@
       setOverride: setVoiceOverride,
       clearOverride: clearVoiceOverride,
       refresh: refreshDevVoiceOptions
+    },
+    feedback: {
+      files: FEEDBACK_AUDIO,
+      play: playFeedbackAudio,
+      stop: stopFeedbackAudio,
+      playing: function () { return feedbackAudio.playing; },
+      broken: function () { return Object.keys(feedbackAudio.broken); },
+      state: function (tier) {
+        var el = feedbackAudio.el[tier];
+        if (!el) return null;
+        return {
+          src: el.currentSrc || el.src,
+          paused: el.paused,
+          currentTime: el.currentTime,
+          duration: isFinite(el.duration) ? el.duration : null,
+          readyState: el.readyState,
+          error: el.error ? el.error.code : null
+        };
+      }
     },
     sfx: {
       play: function () { playRewardFanfare(true); },
